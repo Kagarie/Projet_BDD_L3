@@ -1,6 +1,6 @@
 --Table qui contient les paramètre des objetcs
 
-DROP TABLE IF EXISTS parametre_object,geography_data,medium, credit_line , geography_type,city ,country,county;
+DROP TABLE IF EXISTS parametre_object,geography_data,medium, credit_line , geography_type,city ,country,county,department , other ,locus,meta_data , tags;
 
 CREATE TABLE medium
 (
@@ -31,6 +31,13 @@ CREATE TABLE county
     county VARCHAR PRIMARY KEY
 );
 
+-- Les différents département
+CREATE TABLE department
+(
+    gallery_number serial,
+    department     VARCHAR PRIMARY KEY
+);
+
 CREATE TABLE geography_data
 (
     id_country     SERIAL PRIMARY KEY,
@@ -46,6 +53,25 @@ CREATE TABLE geography_data
     FOREIGN KEY (city) REFERENCES city (city),
     FOREIGN KEY (geography_type) REFERENCES geography_type (geography_type)
 );
+CREATE TABLE tags
+(
+
+    tags VARCHAR PRIMARY KEY
+);
+
+CREATE TABLE meta_data
+(
+    id_meta_data        SERIAL PRIMARY KEY,
+    link_resource       VARCHAR,
+    object_wikidata_url VARCHAR,
+    metadata_date       VARCHAR,
+    repository          VARCHAR,
+    tags_aat_url        VARCHAR,
+    tags_wikidata_url   VARCHAR,
+    tags                VARCHAR,
+    FOREIGN KEY (tags) REFERENCES tags (tags)
+);
+
 
 CREATE TABLE parametre_object
 (
@@ -61,10 +87,29 @@ CREATE TABLE parametre_object
     medium            VARCHAR,
     credit            VARCHAR,
     geography_data    INTEGER,
+    meta_data         INTEGER,
     FOREIGN KEY (medium) REFERENCES medium (medium),
     FOREIGN KEY (credit) REFERENCES credit_line (credit_line),
-    FOREIGN KEY (geography_data) REFERENCES geography_data (id_country)
+    FOREIGN KEY (geography_data) REFERENCES geography_data (id_country),
+    FOREIGN KEY (meta_data) REFERENCES meta_data (id_meta_data)
 );
+
+CREATE TABLE locus
+(
+    locus VARCHAR PRIMARY KEY
+);
+CREATE TABLE other
+(
+    id_other                SERIAL PRIMARY KEY,
+    excavation              VARCHAR,
+    river                   VARCHAR,
+    classification          VARCHAR,
+    rights_and_reproduction VARCHAR,
+    locus                   VARCHAR,
+    FOREIGN KEY (locus) REFERENCES locus (locus)
+);
+
+
 
 INSERT INTO medium(SELECT DISTINCT medium FROM tableinitiale WHERE medium IS NOT NULL);
 
@@ -78,48 +123,44 @@ INSERT INTO country(SELECT DISTINCT country FROM tableinitiale WHERE country is 
 
 INSERT INTO county(SELECT DISTINCT county FROM tableinitiale WHERE county is not null);
 
-INSERT INTO geography_data(SELECT DISTINCT geography_data FROM tableinitiale);
+INSERT INTO department(department)(SELECT Distinct department
+                                   from tableinitiale);
+
+INSERT INTO geography_data(region, subregion, locate, county, city, country, geography_type) (SELECT DISTINCT region,
+                                                                                                              subregion,
+                                                                                                              locale,
+                                                                                                              county,
+                                                                                                              city,
+                                                                                                              country,
+                                                                                                              geography_type
+                                                                                              FROM tableinitiale);
+
+INSERT INTO tags(SELECT distinct tags from tableinitiale where tags is not null);
+
+INSERT INTO meta_data(link_resource, object_wikidata_url, metadata_date, repository, tags_aat_url, tags_wikidata_url,
+                      tags) (SELECT DISTINCT link_resource,
+                                             object_wikidata_url,
+                                             metadata_date,
+                                             repository,
+                                             tags_aat_url,
+                                             tags_wikidata_url,
+                                             tags
+                             FROM tableinitiale);
+
 
 INSERT INTO parametre_object (SELECT DISTINCT object_id, object_number, is_highlight, is_timeline_work, is_public_domain
                               from tableinitiale);
 
+INSERT INTO locus(locus)(SELECT DISTINCT locus FROM tableinitiale WHERE locus IS NOT NULL);
 
+INSERT INTO other(excavation, river, classification, rights_and_reproduction, locus) (SELECT DISTINCT excavation,
+                                                                                                      river,
+                                                                                                      classification,
+                                                                                                      rights_and_reproduction,
+                                                                                                      locus
+                                                                                      FROM tableinitiale);
 -- A finir
 
--- Les différents département
-DROP TABLE IF EXISTS department;
-CREATE TABLE department
-(
-    gallery_number serial PRIMARY KEY,
-    department     VARCHAR
-);
-
-INSERT INTO department(department)(SELECT Distinct department
-                                   from tableinitiale);
-
-DROP TABLE IF EXISTS other;
-CREATE TABLE other
-(
-    id_other                SERIAL PRIMARY KEY,
-    locus                   VARCHAR,
-    excavation              VARCHAR,
-    river                   VARCHAR,
-    classification          VARCHAR,
-    rights_and_reproduction VARCHAR
-);
-
-DROP TABLE IF EXISTS meta_data;
-CREATE TABLE meta_data
-(
-    id_meta_data        SERIAL PRIMARY KEY,
-    link_resource       VARCHAR,
-    object_wikidata_url VARCHAR,
-    metadata_date       VARCHAR,
-    repository          VARCHAR,
-    tags                VARCHAR,
-    tags_aat_url        VARCHAR,
-    tags_wikidata_url   VARCHAR
-);
 
 --Table des différentes culture
 DROP TABLE IF EXISTS culture;
@@ -187,6 +228,3 @@ INSERT INTO artiste_data(artist_role, artist_prefix, artist_display_name, artist
 select *
 from tableinitiale;
 
-
-select count(locus)
-from tableinitiale
