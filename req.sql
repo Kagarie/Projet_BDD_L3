@@ -1,4 +1,8 @@
-truncate tableinitiale;
+--truncate tableinitiale;
+
+DELETE
+FROM tableinitiale
+where artist_display_name like ' | %';
 
 DROP TABLE IF EXISTS objects,parametre_object,geography_data,medium, credit_line , geography_type,city ,country,county,department , other ,locus,meta_data , tags,culture, repository;
 
@@ -101,8 +105,7 @@ CREATE TABLE meta_data
 
 CREATE TABLE parametre_object
 (
-    object_id         INTEGER NOT NULL PRIMARY KEY,
-    object_number     VARCHAR NOT NULL,
+    object_number     VARCHAR PRIMARY KEY,
     is_highlight      BOOLEAN NOT NULL,
     is_timeline_work  BOOLEAN NOT NULL,
     is_public_domain  BOOLEAN NOT NULL,
@@ -118,8 +121,7 @@ CREATE TABLE parametre_object
     FOREIGN KEY (medium) REFERENCES medium (medium),
     FOREIGN KEY (credit) REFERENCES credit_line (credit_line),
     FOREIGN KEY (geography_data) REFERENCES geography_data (id_country),
-    FOREIGN KEY (meta_data) REFERENCES meta_data (id_meta_data),
-    FOREIGN KEY (other) REFERENCES other (id_other)
+    FOREIGN KEY (meta_data) REFERENCES meta_data (id_meta_data)
 );
 
 CREATE TABLE objects
@@ -129,10 +131,10 @@ CREATE TABLE objects
     title            VARCHAR,
     accessionyear    INTEGER,
     culture          VARCHAR,
-    parametre_object INTEGER,
+    parametre_object VARCHAR,
     gallery          INTEGER,
     FOREIGN KEY (culture) REFERENCES culture (culture),
-    FOREIGN KEY (parametre_object) REFERENCES parametre_object (object_id),
+    FOREIGN KEY (parametre_object) REFERENCES parametre_object (object_number),
     FOREIGN KEY (gallery) REFERENCES department (gallery_number)
 );
 
@@ -166,30 +168,33 @@ INSERT INTO tags(SELECT distinct tags from tableinitiale where tags is not null)
 
 INSERT INTO locus(locus)(SELECT DISTINCT locus FROM tableinitiale WHERE locus IS NOT NULL);
 
-INSERT INTO other(SELECT DISTINCT classification,
-                                  excavation,
-                                  river,
-                                  rights_and_reproduction,
-                                  locus
-                  FROM tableinitiale
-                  WHERE classification is not null);
+INSERT INTO other(classification, excavation, river, rights_and_reproduction, locus) (SELECT DISTINCT classification,
+                                                                                                      excavation,
+                                                                                                      river,
+                                                                                                      rights_and_reproduction,
+                                                                                                      locus
+                                                                                      FROM tableinitiale
+                                                                                      WHERE classification is not null);
 
 INSERT INTO repository (select DISTINCT repository FROM tableinitiale where repository is not null);
 
 INSERT INTO meta_data(link_resource, object_wikidata_url, metadata_date, tags_aat_url, tags_wikidata_url, repository,
-                      tags) (SELECT DISTINCT link_resource,
-                                             object_wikidata_url,
-                                             metadata_date,
-                                             tags_aat_url,
-                                             tags_wikidata_url,
-                                             repository,
-                                             tags
-                             FROM tableinitiale);
+                      tags, other) (SELECT DISTINCT link_resource,
+                                                    object_wikidata_url,
+                                                    metadata_date,
+                                                    tags_aat_url,
+                                                    tags_wikidata_url,
+                                                    repository,
+                                                    tags,
+                                                    O.id_other
+                                    FROM tableinitiale T,
+                                         other O
+                                    where O.locus = T.locus
+);
 
+-------------------------------- A FINIR -----------------------------------------------------------------------------------------------------------
 
-INSERT INTO parametre_object (SELECT DISTINCT object_id,
-                                              object_id,
-                                              object_number,
+INSERT INTO parametre_object (SELECT DISTINCT object_number,
                                               is_highlight,
                                               is_timeline_work,
                                               is_public_domain,
@@ -198,10 +203,15 @@ INSERT INTO parametre_object (SELECT DISTINCT object_id,
                                               object_end_date,
                                               dimensions,
                                               medium,
-                                              credit,
-                                              geography_data,
-                                              meta_data
-                              from tableinitiale);
+                                              credit_line,
+                                              G.id_country,
+                                              M.id_meta_data
+                              from tableinitiale T,
+                                   meta_data M,
+                                   geography_data G
+                              where M.repository = T.repository
+                                and G.country = T.country);
+
 
 INSERT INTO objects(object_name, title, accessionyear, culture, parametre_object, gallery) (SELECT DISTINCT object_name,
                                                                                                             title,
@@ -211,8 +221,6 @@ INSERT INTO objects(object_name, title, accessionyear, culture, parametre_object
                                                                                                             gallery
                                                                                             FROM tableinitiale);
 
-
--- A finir
 
 
 DROP TABLE IF EXISTS artiste , artiste_data;
@@ -230,37 +238,47 @@ CREATE TABLE artiste_data
     artist_ulan_url     VARCHAR,
     artist_wikidata_url VARCHAR
 );
-INSERT INTO artiste_data(SELECT distinct artist_name,
-                                         artist_display_bio,
-                                         artist_suffix,
-                                         artist_alpha_sort,
-                                         artist_nationality,
-                                         artist_begin_date,
-                                         artist_end_date,
-                                         artist_gender,
-                                         artist_ulan_url,
-                                         artist_wikidata_url
-                         FROM (select distinct  artist_display_name from tableinitiale)artist_name ,tableinitiale);
+
+INSERT INTO artiste_data (SELECT distinct artist_display_name,
+                                          artist_display_bio,
+                                          artist_suffix,
+                                          artist_alpha_sort,
+                                          artist_nationality,
+                                          artist_begin_date,
+                                          artist_end_date,
+                                          artist_gender,
+                                          artist_ulan_url,
+                                          artist_wikidata_url
+                          FROM tableinitiale
+                          where artist_display_name is not null
+                            and artist_display_name != ' ');
 
 
 CREATE TABLE artiste
 (
-    id_artiste          SERIAL PRIMARY KEY,
-    artist_display_name VARCHAR,
-    artist_role         VARCHAR,
-    artist_prefix       VARCHAR,
-    FOREIGN KEY (artist_display_name) REFERENCES artiste_data (artist_display_name)
+    id_artiste    SERIAL PRIMARY KEY,
+    artist_role   VARCHAR,
+    artist_prefix VARCHAR,
+    artiste_data  VARCHAR,
+    id_object INTEGER,
+    FOREIGN KEY (artiste_data) REFERENCES artiste_data (artist_display_name),
+    FOREIGN KEY (id_object) REFERENCES objects (id_objects)
 );
 
-INSERT INTO artiste(artist_display_name, artist_role, artist_prefix) (SELECT distinct artist_display_name, artist_role, artist_prefix
-                                                                      FROM tableinitiale
-                                                                      where artist_display_name is not null
-);
+INSERT INTO artiste(artist_role, artist_prefix, artiste_data) (SELECT distinct artist_role, artist_prefix, ad.id_artise_data
+                                                               FROM tableinitiale T,
+                                                                    artiste_data ad
+                                                               where T.artist_display_bio = ad.artist_display_bio
+                                                                 and T.artist_display_name = ad.artist_display_name);
 
 
 
-SELECT * from tableinitiale;
+SELECT *
+from tableinitiale;
 
-select count(*)from tableinitiale;
+select count(*)
+from tableinitiale;
 
-select pg_size_pretty(pg_relation_size('tableinitiale'))
+select pg_size_pretty(pg_relation_size('tableinitiale'));
+select pg_size_pretty (pg_database_size('Projet')-pg_relation_size('tableinitiale'));
+
